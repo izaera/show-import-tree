@@ -54,7 +54,6 @@ async function main(argv) {
 async function visitImportTree(url, visit, indent=0) {
 	const res = await fetch(url);
     const source = await res.text();
-	console.log(source);
 	const lines = source.split('\n');
 	const importLines = lines.map(line => line.trim()).filter(line => line.startsWith('import '));
 
