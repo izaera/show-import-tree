@@ -2,12 +2,18 @@ main(process.argv).catch(console.error);
 
 async function main(argv) {
 	if (argv.length < 3) {
-		console.error('Usage: show-import-tree <url> [-d]');
+		console.error('Usage: show-import-tree <url> [<JSESSIONID cookie>] [-d]');
 		process.exit(2);
 	}
 
 	const url = argv[2];
 	const dedupe = !!argv.find(item => item === '-d');
+
+	let jsessionid = null;
+
+	if (argv.length > 3 && !argv[3].startsWith('-')) {
+		jsessionid = argv[3];
+	}
 
 	if (dedupe) {
 		const modules = {};
@@ -17,7 +23,7 @@ async function main(argv) {
 
 		process.stderr.write('Working hard ⚒️  ' + progress[0] + ' ');
 
-		await visitImportTree(url, (level, url, size) => {
+		await visitImportTree(url, jsessionid, (level, url, size) => {
 			const {level: oldLevel} = modules[url] || {level: Number.MAX_VALUE};
 
 			if (oldLevel > level) {
@@ -47,12 +53,18 @@ async function main(argv) {
 		}
 	}
 	else {
-		await visitImportTree(url, indentLog);
+		await visitImportTree(url, jsessionid, indentLog);
 	}
 }
 
-async function visitImportTree(url, visit, indent=0) {
-	const res = await fetch(url);
+async function visitImportTree(url, jsessionid, visit, indent=0) {
+	const headers = {};
+
+	if (jsessionid) {
+		headers['Cookie'] = `JSESSIONID=${jsessionid}`
+	}
+
+	const res = await fetch(url, {headers});
     const source = await res.text();
 	const lines = source.split('\n');
 	const importLines = lines.map(line => line.trim()).filter(line => line.startsWith('import '));
@@ -89,7 +101,7 @@ async function visitImportTree(url, visit, indent=0) {
 			moduleUrl = new URL(module);
 		}
 
-		await visitImportTree(moduleUrl.toString(), visit, indent+1);
+		await visitImportTree(moduleUrl.toString(), jsessionid, visit, indent+1);
 	}
 }
 
