@@ -1,3 +1,6 @@
+import {parse} from 'acorn';
+import estraverse from 'estraverse';
+
 main(process.argv).catch(console.error);
 
 async function main(argv) {
@@ -65,20 +68,50 @@ async function visitImportTree(url, jsessionid, visit, indent=0) {
 	}
 
 	const res = await fetch(url, {headers});
+	const contentType = res.headers.get('content-type');
     const source = await res.text();
-	const lines = source.split('\n');
-	const importLines = lines.map(line => line.trim()).filter(line => line.startsWith('import '));
 
-	let importModules = importLines.map(line => {
-		let module = line.replace(/import [^"']*/, '');
+	let importModules = [];
 
-		for (const c of [';', "'", '"']) {
-			module = module.replaceAll(c, '');
-		}
+	// JAVASCRIPT /////////////////////////////////////////////////////////////
+	if (contentType.startsWith('application/javascript')) {
+		const ast = parse(source, {ecmaVersion: 'latest', sourceType: 'module'});
 
-		return module;
-	});
+		estraverse.traverse(ast, {
+			enter: (node, parent) => {
+				if (node.type == 'ImportDeclaration') {
+					importModules.push(node.source.value);
+				}
+			},
 
+			leave: (node, parent) => {
+			}
+		});
+	}
+
+	// HTML ///////////////////////////////////////////////////////////////////
+	else if (contentType.startsWith('text/html')) {
+		const lines = source.split('\n');
+		const importLines = lines.map(line => line.trim()).filter(line => line.startsWith('import '));
+
+		importModules = importLines.map(line => {
+			let module = line.replace(/import [^"']*/, '');
+
+			for (const c of [';', "'", '"']) {
+				module = module.replaceAll(c, '');
+			}
+
+			return module;
+		});
+	}
+
+	// UNKNOWN ////////////////////////////////////////////////////////////////
+	else {
+		console.error(`Unsupported content type ${contentType} found for URL ${url}`);
+		return;
+	}
+	
+	// TREAT IMPORTS //////////////////////////////////////////////////////////
 	importModules = [...new Set(importModules)];
 	importModules.sort();
 
