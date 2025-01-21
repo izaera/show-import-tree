@@ -49,14 +49,16 @@ async function main(argv) {
 
 			for (const [url, {level, size}] of Object.entries(modules)) {
 				if (level == i) {
-					console.log(`[${level}] ${url} ${size}`);
+					console.log(`[${level}]`, url, size);
 					nothingFound = false;
 				}
 			}
 		}
 	}
 	else {
-		await visitImportTree(url, jsessionid, indentLog);
+		await visitImportTree(url, jsessionid, (level, url, size) => {
+			indentLog(level, `[${level}]`, url, size);
+		});
 	}
 }
 
