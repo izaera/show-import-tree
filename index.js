@@ -6,7 +6,7 @@ main(process.argv).catch(console.error);
 async function main(argv) {
 	if (argv.length < 3) {
 		console.error('Usage: show-import-tree <url> [<JSESSIONID cookie>] [-d]');
-		console.error('       show-import-tree <HAR file path>');
+		console.error('       show-import-tree <HAR file path> [-js] [-css] [-html] [-img]');
 		process.exit(2);
 	}
 

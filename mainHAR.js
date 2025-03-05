@@ -5,6 +5,12 @@ import { indentLog } from './util.js';
 export default async function mainHAR(argv) {
 	const filePath = argv[2];
 
+	const filterJS = argv.find(arg => arg === '-js');
+	const filterCSS = argv.find(arg => arg === '-css');
+	const filterHTML = argv.find(arg => arg === '-html');
+	const filterIMG = argv.find(arg => arg === '-img');
+	const filterEnabled = filterJS || filterCSS || filterHTML || filterIMG;
+
 	const text = await fs.readFile(filePath, 'utf-8');
 	const json = JSON.parse(text);
 
@@ -17,14 +23,56 @@ export default async function mainHAR(argv) {
 	}
 	const props = {
 		[pageURL]: {
+			aggregateSize: 0,
 			size: 0,
 		}
 	}
 
-	json.log.entries.forEach(entry => {
+	const ignoredMimetypes = {};
+
+	for (const entry of json.log.entries) {
 		const {request, response} = entry;
 		
+		const mimeType = response.content.mimeType.replace(/;.*/, '').trim();
+
+		if (filterEnabled) {
+			let filter = false;
+
+			if (filterJS && mimeType.endsWith('/javascript')) {
+				filter = true;
+			}
+			else if (filterCSS && mimeType.endsWith('/css')) {
+				filter = true;
+			}
+			else if (filterHTML && mimeType.endsWith('/html')) {
+				filter = true;
+			}
+			else if (filterIMG && mimeType.startsWith('image/')) {
+				filter = true;
+			}
+
+			if (!filter) {
+				if (!ignoredMimetypes[mimeType]) {
+					console.warn(`ignored mimetype: ${mimeType}`);
+				}
+
+				ignoredMimetypes[mimeType] = true;
+				continue;
+			}
+		}
+
 		const url = request.url;
+
+		props[url] = {
+			aggregateSize: response.content.size,
+			mimeType,
+			size: response.content.size,
+		};
+
+		if (url === pageURL) {
+			continue;
+		}
+
 		const referer = getHeader(request.headers, 'Referer');
 
 		const node = index[referer];
@@ -32,12 +80,7 @@ export default async function mainHAR(argv) {
 		node[url] = {};
 
 		index[url] = node[url];
-
-		props[url] = {
-			aggregateSize: response.content.size,
-			size: response.content.size,
-		};
-	});
+	}
 
 	console.log(`
 <html>
@@ -113,24 +156,16 @@ function printHARTree(tree, props, indent, totalSize) {
 			`<div class="node ${leaf ? 'leaf' : ''}" onclick="toggle(this, event)">`
 		);
 
-		if (!size) {
-			indentLog(
-				indent+1, 
-				url, 
-			);
-		}
-		else {
-			indentLog(
-				indent+1, 
-				leaf 
-					? `[${percent}%]`
-					: `[${aggregatePercent}%(∑), ${percent}%]`,
-				url, 
-				leaf 
-					? `[${size}]`
-					: `[${aggregateSize}(∑), ${size}]`,
-			);
-		}
+		indentLog(
+			indent+1,
+			leaf
+				? `[${percent}%]`
+				: `[${aggregatePercent}%(∑), ${percent}%]`,
+			url,
+			leaf
+				? `[${size}]`
+				: `[${aggregateSize}(∑), ${size}]`,
+		);
 
 		printHARTree(tree[url], props, indent+1, totalSize);
 
