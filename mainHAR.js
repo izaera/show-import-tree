@@ -32,8 +32,13 @@ export default async function mainHAR(argv) {
 
 	for (const entry of json.log.entries) {
 		const {request, response} = entry;
-		
-		const mimeType = response.content.mimeType.replace(/;.*/, '').trim();
+	
+		let mimeType = response.content.mimeType?.replace(/;.*/, '').trim();
+
+		if (!mimeType) {
+			console.error(`WARNING: Request for '${request.url}' returned no MIME type`);
+			mimeType = '';
+		}
 
 		if (filterEnabled) {
 			let filter = false;
@@ -66,7 +71,7 @@ export default async function mainHAR(argv) {
 		props[url] = {
 			aggregateSize: response.content.size,
 			mimeType,
-			size: response.content.size,
+			size: response.content.size ?? 0,
 		};
 
 		if (url === pageURL) {
